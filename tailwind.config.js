@@ -4,6 +4,8 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './utils/**/*.{js,ts}',
+    "./node_modules/flowbite/**/*.js",
   ],
   theme: {
     extend: {
@@ -12,7 +14,15 @@ module.exports = {
         'gradient-conic':
           'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
+      boxShadow: {
+        'glow': '0 0 12px 1px rgba(255, 255, 255, 0.5)',
+      },
+      colors: {
+        dark: '#121212'
+      }
     },
   },
-  plugins: [],
+  plugins: [
+    require('flowbite/plugin')
+  ],
 }
