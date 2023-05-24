@@ -13,6 +13,7 @@ module.exports = {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic':
           'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+        'dimensions-background': "url('/images/dimensions-background.svg')"
       },
       boxShadow: {
         'glow': '0 0 12px 1px rgba(255, 255, 255, 0.5)',
