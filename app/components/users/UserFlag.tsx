@@ -1,8 +1,8 @@
-import { UserProfileInfo } from '@/models/user/UserProfileInfo';
+import { BasicInfo } from '@/models/user/BasicInfo';
 import Image from 'next/image';
 
 export type UserFlagProps = {
-  info: UserProfileInfo;
+  info: BasicInfo;
 };
 export const UserFlag = ({ info }: UserFlagProps) => {
   return (

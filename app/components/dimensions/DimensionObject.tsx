@@ -1,38 +1,43 @@
 'use client';
 
-import { MathUtils, Vector3, Matrix4 } from 'three';
-import { MeshProps, ThreeEvent } from '@react-three/fiber';
-import { useState } from 'react';
-import { Triplet, useBox } from '@react-three/cannon';
-import { ElementUnion } from '@/models/enums/ElementType';
-import { getElementColorFromUnion } from '@/utils/elements';
+import { MathUtils, Shape, TextureLoader } from 'three';
+import { MeshProps, ThreeEvent, useLoader } from '@react-three/fiber';
+import { useLayoutEffect, useState } from 'react';
+import { Triplet, useBox, usePlane } from '@react-three/cannon';
+import {
+  getElementColorFromUnion,
+  getElementEmissiveFromUnion
+} from '@/utils/elements';
+import { ProfileElementUnion } from '@/models/enums/ProfileElementTypeEnum';
+import { useTexture } from '@react-three/drei';
 
 export type DimensionObjectProps = {
-  elementType: ElementUnion;
+  elementType: ProfileElementUnion;
 };
 
 export const DimensionObject = (props: MeshProps & DimensionObjectProps) => {
-  const [hovered, hover] = useState(false);
-  const [clicked, click] = useState(false);
-  const [vec, setVec] = useState(new Vector3());
-  const [mat, setMat] = useState(new Matrix4());
+  const [hovered, setHovered] = useState(false);
+  const [clicked, setClick] = useState(false);
+
+  // const texture = useLoader(
+  //   TextureLoader,
+  //   '/images/dimensions/traits-texture.svg'
+  // );
+
+  // const texture = useTexture('/images/dimensions/traits-texture.svg')
 
   const [ref, api] = useBox(() => ({
-    args: [2.5, 2.5, 2.5],
+    args: [1, 1, 1],
     mass: 1,
-    angularDamping: 0.1,
-    linearDamping: 0.65,
+    fixedRotation: true,
+    rotation: [0, 0, MathUtils.randFloatSpread(30)],
     position: !!props.position
       ? (props.position as Triplet)
-      : [
-          MathUtils.randFloatSpread(10),
-          MathUtils.randFloatSpread(10),
-          MathUtils.randFloatSpread(10)
-        ]
+      : [MathUtils.randFloatSpread(1), MathUtils.randFloatSpread(1), 0]
   }));
 
   const onClickHandler = (e: ThreeEvent<MouseEvent>) => {
-    click(!clicked);
+    setClick(!clicked);
 
     !!props.onClick && props.onClick(e);
   };
@@ -40,19 +45,23 @@ export const DimensionObject = (props: MeshProps & DimensionObjectProps) => {
   return (
     <mesh
       {...props}
-      // @ts-ignore
+      //@ts-ignore
       ref={ref}
       castShadow
-      receiveShadow
       onClick={onClickHandler}
-      onPointerOver={(event) => hover(true)}
-      onPointerOut={(event) => hover(false)}
+      onPointerOver={(event) => setHovered(true)}
+      onPointerOut={(event) => setHovered(false)}
     >
       {props.children}
-      <meshStandardMaterial
+      <meshPhysicalMaterial
+        attach="material"
         color={getElementColorFromUnion(props.elementType)}
+        emissive={getElementEmissiveFromUnion(props.elementType)}
         transparent={true}
-        opacity={hovered ? 0.8 : 1}
+        opacity={0.75}
+        clearcoat={1}
+        clearcoatRoughness={0}
+        reflectivity={1}
       />
     </mesh>
   );

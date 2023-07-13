@@ -1,124 +1,113 @@
 'use client';
 
-import { Element } from '@/models/elements/Element';
-import { ElementDetail } from '@/models/elements/ElementDetail';
-import { ElementUnion } from '@/models/enums/ElementType';
+import { ElementListItem } from '@/models/elements/ElementListItem';
+import { ProfileElementUnion } from '@/models/enums/ProfileElementTypeEnum';
+import { RelationshipViewModeEnum } from '@/models/enums/RelationshipViewModeEnum';
+import { ProfileData } from '@/models/user/ProfileData';
+import { User } from '@/models/user/User';
+import { buildProfileElementList } from '@/utils/elements';
 import { Physics } from '@react-three/cannon';
-import { OrbitControls } from '@react-three/drei';
-import { Canvas, Vector3 } from '@react-three/fiber';
-import { useEffect, useState } from 'react';
-import { MathUtils } from 'three';
+import { Canvas } from '@react-three/fiber';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
+import { Suspense, useEffect, useState } from 'react';
 import DimensionObject from './DimensionObject';
+import DimensionsBorders from './DimensionsBorders';
 import DimensionsEnvironment from './DimensionsEnvironment';
-import Diamond from './shapes/Diamond';
-import PrismHexagon from './shapes/PrismHexagon';
-import PrismPentagon from './shapes/PrismPentagon';
-import Pyramid from './shapes/Pyramid';
+import Behavior from './shapes/Behavior';
+import Benefit from './shapes/Benefit';
+import Event from './shapes/Event';
+import Trait from './shapes/Trait';
 
 export type DimensionsSceneProps = {
-  elements: Element[];
-  filterTypes?: ElementUnion[];
-  onSelectedChange?: (element: ElementDetailListItem | undefined) => any;
-};
-
-export type ElementDetailListItem = {
-  type: ElementUnion;
-  detail: ElementDetail;
-  level: 1 | 2 | 3;
+  profile: ProfileData;
+  filterTypes?: ProfileElementUnion[];
+  onSelectedChange?: (element: ElementListItem | undefined) => any;
+  relationships?: User[];
+  relationshipViewMode?: string;
 };
 
 export const DimensionsScene = ({
-  elements,
+  profile,
   filterTypes,
-  onSelectedChange
+  onSelectedChange,
+  relationships,
+  relationshipViewMode
 }: DimensionsSceneProps) => {
-  const [elementDetails, setElementDetails] = useState<ElementDetailListItem[]>(
-    []
-  );
+  const [elementDetails, setElementDetails] = useState<ElementListItem[]>([]);
   const [selectedElement, setSelectedElement] = useState<
-    ElementDetailListItem | undefined
+    ElementListItem | undefined
   >(undefined);
 
-  const getScaleFromLevel = (number: 1 | 2 | 3) => {
+  const getScaleFromLevel = (number: number) => {
     switch (number) {
       case 1:
-        return 2;
+        return 1.75;
       case 2:
-        return 1;
+        return 1.25;
       case 3:
-        return 0.25;
+        return 0.66;
       default:
         return 1;
     }
   };
 
-  const onElementClick = (element: ElementDetailListItem) => {
+  const onElementClick = (element: ElementListItem) => {
     if (
       !!selectedElement &&
       element.level === selectedElement.level &&
       element.type === selectedElement.type &&
-      element.detail.cat_id === selectedElement.detail.cat_id
+      element.element.element_id === selectedElement.element.element_id
     ) {
       setSelectedElement(undefined);
     } else {
-      setSelectedElement(element);
+      setSelectedElement({ ...element });
     }
   };
 
-  const renderElement = (element: ElementDetailListItem, index: number) => {
-    const elementPosition: Vector3 = [
-      MathUtils.randFloatSpread(10),
-      MathUtils.randFloatSpread(10),
-      MathUtils.randFloatSpread(10)
-    ];
-
+  const renderElement = (element: ElementListItem, index: number) => {
     switch (element.type) {
       case 'Traits':
         return (
           <DimensionObject
             key={`element-${index}`}
-            position={elementPosition}
             scale={getScaleFromLevel(element.level)}
             elementType={element.type}
             onClick={() => onElementClick(element)}
           >
-            <Pyramid />
+            <Trait />
           </DimensionObject>
         );
       case 'Events':
         return (
           <DimensionObject
             key={`element-${index}`}
-            position={elementPosition}
             scale={getScaleFromLevel(element.level)}
             elementType={element.type}
             onClick={() => onElementClick(element)}
           >
-            <Diamond />
+            <Event />
           </DimensionObject>
         );
       case 'Benefits':
         return (
           <DimensionObject
             key={`element-${index}`}
-            position={elementPosition}
             scale={getScaleFromLevel(element.level)}
             elementType={element.type}
             onClick={() => onElementClick(element)}
           >
-            <PrismPentagon />
+            <Benefit />
           </DimensionObject>
         );
       case 'Behavior':
         return (
           <DimensionObject
             key={`element-${index}`}
-            position={elementPosition}
             scale={getScaleFromLevel(element.level)}
             elementType={element.type}
             onClick={() => onElementClick(element)}
           >
-            <PrismHexagon />
+            <Behavior />
           </DimensionObject>
         );
       default:
@@ -127,44 +116,61 @@ export const DimensionsScene = ({
   };
 
   useEffect(() => {
-    const detailsList: ElementDetailListItem[] = [];
+    let usersList = buildProfileElementList(profile);
+    let detailsList: ElementListItem[] = [];
 
-    // * See about naming these differently so we can do this recursively
-    elements.forEach((e) => {
-      e.detail_level1.forEach((dl1) => {
-        detailsList.push({
-          type: e.element_type,
-          level: 1,
-          detail: { ...dl1, detail_level2: undefined, detail_level3: undefined }
-        });
-        if (!!dl1.detail_level2) {
-          dl1.detail_level2.forEach((dl2) => {
-            detailsList.push({
-              type: e.element_type,
-              level: 2,
-              detail: {
-                ...dl2,
-                detail_level2: undefined,
-                detail_level3: undefined
-              }
-            });
-            if (!!dl2.detail_level3) {
-              dl2.detail_level3.forEach((dl3) => {
-                detailsList.push({
-                  type: e.element_type,
-                  level: 3,
-                  detail: {
-                    ...dl3,
-                    detail_level2: undefined,
-                    detail_level3: undefined
-                  }
-                });
-              });
-            }
-          });
+    if (!!relationships && relationships.length > 0) {
+      let relationshipsList: ElementListItem[] = [];
+
+      relationships.forEach((u) => {
+        if (!!u.profile) {
+          const relationshipDetailsList = buildProfileElementList(u.profile);
+
+          relationshipsList = [
+            ...relationshipsList,
+            ...relationshipDetailsList
+          ];
         }
       });
-    });
+
+      if (
+        !!relationshipViewMode &&
+        relationshipViewMode !== RelationshipViewModeEnum.Everything
+      ) {
+        const userCategories = Array.from(
+          new Set(usersList.map((pe) => pe.element.element_id))
+        );
+        const relationshipsCategories = Array.from(
+          new Set(relationshipsList.map((pe) => pe.element.element_id))
+        );
+
+        if (relationshipViewMode === RelationshipViewModeEnum.Similarities) {
+          usersList = usersList.filter((pe) =>
+            relationshipsCategories.includes(pe.element.element_id)
+          );
+          relationshipsList = relationshipsList.filter(
+            (pe) =>
+              userCategories.includes(pe.element.element_id) &&
+              !usersList.some(
+                (upe) => upe.element.element_id === pe.element.element_id
+              )
+          );
+        } else if (
+          relationshipViewMode === RelationshipViewModeEnum.Complementaries
+        ) {
+          usersList = usersList.filter(
+            (pe) => !relationshipsCategories.includes(pe.element.element_id)
+          );
+          relationshipsList = relationshipsList.filter(
+            (pe) => !userCategories.includes(pe.element.element_id)
+          );
+        }
+      }
+
+      detailsList = [...usersList, ...relationshipsList];
+    } else {
+      detailsList = [...usersList];
+    }
 
     if (!!!filterTypes || filterTypes.length === 0) {
       setElementDetails(detailsList);
@@ -173,20 +179,33 @@ export const DimensionsScene = ({
         detailsList.filter((dli) => filterTypes.includes(dli.type))
       );
     }
-  }, [elements, filterTypes]);
+  }, [profile, filterTypes, relationships, relationshipViewMode]);
 
   useEffect(() => {
     !!onSelectedChange && onSelectedChange(selectedElement);
   }, [onSelectedChange, selectedElement]);
 
   return (
-    <Canvas camera={{ position: [-15, 10, 15] }}>
-      <DimensionsEnvironment />
-      <OrbitControls makeDefault />
+    <Canvas orthographic camera={{ position: [0, 0, 100], zoom: 25 }}>
+      <Suspense fallback={null}>
+        <DimensionsEnvironment />
 
-      <Physics gravity={[0, 0, 0]}>
-        {elementDetails.map((ed, i) => renderElement(ed, i))}
-      </Physics>
+        <Physics gravity={[0, 0, 0]} allowSleep={false}>
+          <group position={[0, 0, -10]}>
+            <DimensionsBorders />
+            {elementDetails.map((ed, i) => renderElement(ed, i))}
+          </group>
+        </Physics>
+
+        <EffectComposer>
+          <Bloom
+            intensity={0.7}
+            luminanceThreshold={0}
+            luminanceSmoothing={0.9}
+            height={300}
+          />
+        </EffectComposer>
+      </Suspense>
     </Canvas>
   );
 };

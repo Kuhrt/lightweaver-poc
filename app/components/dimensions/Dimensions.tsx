@@ -1,196 +1,227 @@
 'use client';
 
-import { ElementUnion } from '@/models/enums/ElementType';
+import { ProfileElementUnion } from '@/models/enums/ProfileElementTypeEnum';
 import { User } from '@/models/user/User';
-import {
-  getElementColorFromUnion,
-  getElementTextClassFromUnion
-} from '@/utils/elements';
+import { buildProfileElementList } from '@/utils/elements';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '../buttons/Button';
-import Card from '../cards/Card';
-import UserFlag from '../users/UserFlag';
-import DimensionsScene, { ElementDetailListItem } from './DimensionsScene';
+import { UserAvatar } from '../users/UserAvatar';
+import DimensionDetailCard from './DimensionDetailCard';
+import DimensionsScene from './DimensionsScene';
+import DimensionsSwitcher from './switcher/DimensionsSwitcher';
+import Link from 'next/link';
+import DropdownComponent from '../dropdown/DropdownComponent';
+import { DropdownItem } from '@/models/dropdown/DropdownItem';
+import { RelationshipViewModeEnum } from '@/models/enums/RelationshipViewModeEnum';
+import { ElementListItem } from '@/models/elements/ElementListItem';
 
 export type DimensionsProps = {
   user: User;
+  isAnotherUser?: boolean;
+  relationships?: User[];
 };
-export const Dimensions = ({ user }: DimensionsProps) => {
+export const Dimensions = ({
+  user,
+  isAnotherUser,
+  relationships
+}: DimensionsProps) => {
   const [selectedElement, setSelectedElement] = useState<
-    ElementDetailListItem | undefined
+    ElementListItem | undefined
   >(undefined);
-  const [filterTypes, setFilterTypes] = useState<ElementUnion[]>([]);
-
-  const onSelectedChange = useCallback(
-    (e: ElementDetailListItem | undefined) => {
-      setSelectedElement(e);
+  const [filterTypes, setFilterTypes] = useState<ProfileElementUnion[]>([]);
+  const [viewModeDropdownItems] = useState<DropdownItem[]>([
+    {
+      id: RelationshipViewModeEnum.Everything,
+      title: RelationshipViewModeEnum.Everything
     },
-    []
+    {
+      id: RelationshipViewModeEnum.Similarities,
+      title: RelationshipViewModeEnum.Similarities
+    },
+    {
+      id: RelationshipViewModeEnum.Complementaries,
+      title: RelationshipViewModeEnum.Complementaries
+    }
+  ]);
+  const [selectedViewMode, setSelectedViewMode] = useState<DropdownItem>(
+    viewModeDropdownItems[0]
+  );
+  const [selectedViewModeId, setSelectedViewModeId] = useState('');
+  const [selectedInfoText, setSelectedInfoText] = useState<string | undefined>(
+    undefined
   );
 
-  const onFilterClick = (type: ElementUnion) => {
+  const onSelectedChange = useCallback((e: ElementListItem | undefined) => {
+    setSelectedElement(e);
+  }, []);
+
+  const onFilterClick = (type?: ProfileElementUnion) => {
     setSelectedElement(undefined);
 
-    if (filterTypes.includes(type)) {
-      setFilterTypes(filterTypes.filter((t) => t !== type));
+    if (!type) {
+      setFilterTypes([]);
+      return;
+    }
+
+    setFilterTypes([type]);
+  };
+
+  const onViewModeChange = (viewModeId: string) => {
+    setSelectedElement(undefined);
+    const viewMode = viewModeDropdownItems.find((i) => i.id === viewModeId);
+
+    if (!!viewMode) {
+      setSelectedViewMode(viewMode);
     } else {
-      setFilterTypes([...filterTypes, type]);
+      setSelectedViewMode(viewModeDropdownItems[0]);
     }
   };
+
+  useEffect(() => {
+    if (!!selectedViewMode) {
+      setSelectedViewModeId(selectedViewMode.id);
+    } else {
+      setSelectedViewModeId(RelationshipViewModeEnum.Everything);
+    }
+  }, [selectedViewMode]);
+
+  useEffect(() => {
+    if (
+      !!!relationships ||
+      !!!selectedElement ||
+      !!!user.profile ||
+      (!!!user.profile.traits &&
+        !!!user.profile.events &&
+        !!!user.profile.behavior &&
+        !!!user.profile.benefits)
+    ) {
+      setSelectedInfoText(undefined);
+      return;
+    }
+
+    const userElements = buildProfileElementList(user.profile);
+    if (selectedElement.userId === user.profile.info.uid) {
+      for (let index = 0; index < relationships.length; index++) {
+        const relationship = relationships[index];
+        if (!!relationship.profile) {
+          const relationshipElements = buildProfileElementList(
+            relationship.profile
+          );
+
+          if (
+            relationshipElements.some(
+              (re) =>
+                selectedElement.element.element_id === re.element.element_id
+            )
+          ) {
+            setSelectedInfoText(
+              'This dimension is listed on both of your profiles'
+            );
+            break;
+          } else {
+            setSelectedInfoText(
+              `This dimension is one that you have listed and ${relationship.profile.info.first_name} does not`
+            );
+          }
+        }
+      }
+    } else {
+      const relationship = relationships.find(
+        (r) => r.profile?.info.uid === selectedElement.userId
+      );
+
+      if (
+        !!relationship?.profile &&
+        userElements.some(
+          (ue) => selectedElement.element.element_id === ue.element.element_id
+        )
+      ) {
+        setSelectedInfoText(
+          'This dimension is listed on both of your profiles'
+        );
+      } else if (!!relationship?.profile) {
+        setSelectedInfoText(
+          `This dimension is one that ${relationship.profile.info.first_name} has listed and you do not`
+        );
+      }
+    }
+  }, [selectedElement, relationships, user.profile]);
 
   return (
     <>
       <div className="absolute top-0 right-0 bottom-0 left-0 z-0 overflow-hidden">
-        <DimensionsScene
-          elements={user.Profile.elements}
-          onSelectedChange={onSelectedChange}
-          filterTypes={filterTypes}
-        />
+        {!!user.profile && (
+          <DimensionsScene
+            profile={user.profile}
+            onSelectedChange={onSelectedChange}
+            filterTypes={filterTypes}
+            relationships={relationships}
+            relationshipViewMode={selectedViewMode.id}
+          />
+        )}
       </div>
-      <div className="relative flex-1 pointer-events-none z-10 min-h-full w-full max-w-screen-2xl mx-auto flex flex-col justify-between py-12 px-4">
+      <div className="relative flex-1 pointer-events-none z-10 min-h-full w-full max-w-screen-2xl mx-auto flex flex-col justify-between py-14 px-4">
         <div className="flex items-start justify-between">
-          <div>
-            <button
-              type="button"
-              className="flex justify-start text-white items-center mb-6 pointer-events-auto cursor-pointer"
-              onClick={() => onFilterClick('Traits')}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill={getElementColorFromUnion('Traits')}
-                className="w-6 h-6 mr-4"
-              >
-                <path d="M24 22h-24l12-20z" />
-              </svg>
-              <p
-                className={`font-bold ${
-                  filterTypes.includes('Traits')
-                    ? getElementTextClassFromUnion('Traits')
-                    : 'text-white'
-                }`}
-              >
-                Traits
-              </p>
-            </button>
-            <button
-              type="button"
-              className="flex justify-start items-center text-white mb-6 pointer-events-auto cursor-pointer"
-              onClick={() => onFilterClick('Events')}
-            >
-              <svg
-                width="24"
-                height="24"
-                xmlns="http://www.w3.org/2000/svg"
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                fill={getElementColorFromUnion('Events')}
-                className="w-6 h-6 mr-4"
-              >
-                <path d="M12 .001l12 12-12 12-12-12 12-12z" />
-              </svg>
-              <p
-                className={`font-bold ${
-                  filterTypes.includes('Events')
-                    ? getElementTextClassFromUnion('Events')
-                    : 'text-white'
-                }`}
-              >
-                Events
-              </p>
-            </button>
-            <button
-              type="button"
-              className="flex justify-start items-center text-white mb-6 pointer-events-auto cursor-pointer"
-              onClick={() => onFilterClick('Benefits')}
-            >
-              <svg
-                clip-rule="evenodd"
-                fill-rule="evenodd"
-                stroke-linejoin="round"
-                stroke-miterlimit="2"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-                fill={getElementColorFromUnion('Benefits')}
-                className="w-6 h-6 mr-4"
-              >
-                <path
-                  d="m11.467 3.183c.175-.122.38-.183.584-.183.206 0 .413.063.589.186 1.778 1.252 7.104 4.997 8.93 6.282.274.194.43.505.43.826 0 .11-.018.221-.056.329-.697 2.016-2.668 7.718-3.351 9.693-.142.41-.53.684-.965.684h-11.153c-.432 0-.818-.27-.962-.674-.7-1.964-2.732-7.667-3.454-9.694-.04-.111-.059-.225-.059-.338 0-.324.157-.636.435-.829 1.853-1.289 7.239-5.035 9.032-6.282z"
-                  fill-rule="nonzero"
-                />
-              </svg>
-              <p
-                className={`font-bold ${
-                  filterTypes.includes('Benefits')
-                    ? getElementTextClassFromUnion('Benefits')
-                    : 'text-white'
-                }`}
-              >
-                Benefits
-              </p>
-            </button>
-            <button
-              type="button"
-              className="flex justify-start items-center text-white mb-6 pointer-events-auto cursor-pointer"
-              onClick={() => onFilterClick('Behavior')}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill={getElementColorFromUnion('Behavior')}
-                className="w-6 h-6 mr-4"
-              >
-                <path d="M18 2l6 10.5-6 10.5h-12l-6-10.5 6-10.5z" />
-              </svg>
-              <p
-                className={`font-bold ${
-                  filterTypes.includes('Behavior')
-                    ? getElementTextClassFromUnion('Behavior')
-                    : 'text-white'
-                }`}
-              >
-                Behaviors
-              </p>
-            </button>
+          <div className="pointer-events-auto">
+            <DimensionsSwitcher onFilterClick={onFilterClick} />
           </div>
           <div className="text-right">
-            <Button type="button" className="pointer-events-auto">
-              Edit Profile
-            </Button>
+            {!!relationships && relationships.length > 0 ? (
+              <div className="text-left -mt-6 pointer-events-auto">
+                <DropdownComponent
+                  items={viewModeDropdownItems}
+                  selectedItem={selectedViewMode}
+                  label="View Mode"
+                  onFilterClick={onViewModeChange}
+                />
+              </div>
+            ) : isAnotherUser ? (
+              <Link
+                href={{
+                  pathname: '/relationships',
+                  query: { guids: [user.profile?.info.uid].join(',') }
+                }}
+              >
+                <Button type="button" className="pointer-events-auto">
+                  View Relationship
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/edit">
+                <Button type="button" className="pointer-events-auto">
+                  Edit Profile
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex flex-col-reverse md:flex-row md:items-end md:justify-between">
-          <div className='mt-4 md:mt-0'>
-            <UserFlag info={user.Profile.info} />
+          <div className="mt-4 md:mt-0">
+            <UserAvatar
+              isAnotherUser={isAnotherUser}
+              user={user.profile?.info!}
+              color="white"
+            />
+            {!!relationships &&
+              relationships.map((u, i) =>
+                !!u.profile?.info ? (
+                  <UserAvatar
+                    key={`user-avatar-${i}`}
+                    isAnotherUser={true}
+                    user={u.profile.info}
+                    color="white"
+                    className="ms-3 lg:ms-5"
+                  />
+                ) : undefined
+              )}
           </div>
           <div>
             {!!selectedElement && (
-              <Card className="w-full text-center lg:w-96 p-20 pointer-events-auto">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill={getElementColorFromUnion(selectedElement.type)}
-                  className="w-10 h-10 mx-auto"
-                >
-                  <path d="M24 22h-24l12-20z" />
-                </svg>
-                <h3
-                  className={`text-xl mt-8 mb-4 uppercase font-bold ${getElementTextClassFromUnion(
-                    selectedElement.type
-                  )}`}
-                >
-                  {selectedElement.type} {selectedElement.level}
-                </h3>
-                <p className="text-lg font-semibold max-w-[165px] mx-auto">
-                  {selectedElement.detail.cat}
-                </p>
-              </Card>
+              <DimensionDetailCard
+                type={selectedElement.type}
+                detail={selectedElement.element}
+                infoText={selectedInfoText}
+              />
             )}
           </div>
         </div>

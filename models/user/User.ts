@@ -1,6 +1,7 @@
-import { UserProfile } from "./UserProfile";
+import { BasicInfo } from './BasicInfo'
+import { ProfileData } from './ProfileData'
 
 export interface User {
-  Profile: UserProfile
-  Connections?: any[]
+  profile?: ProfileData
+  connections?: BasicInfo[]
 }

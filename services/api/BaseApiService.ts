@@ -1,15 +1,22 @@
+import { ApiResponse } from '@/models/api/ApiResponse'
+import { isApiResponseSuccessful } from '@/utils/api'
+import { ApiError } from 'next/dist/server/api-utils'
 import { ApiMethod } from '../../models/api/ApiMethod'
 import { KeyValue } from '../../models/common/KeyValue'
 
 export class BaseApiService {
   private _baseUrl: string
+  private _authToken?: string
 
   private _headers: [string, string][] = []
   private _method: ApiMethod = 'GET'
 
-  constructor(urlPrefix?: string) {
-    const baseUrl = '/api/'
+  constructor(urlPrefix?: string, authToken?: string) {
+    const baseUrl = !!process.env.NEXT_PUBLIC_API_BASE_URL
+      ? process.env.NEXT_PUBLIC_API_BASE_URL
+      : '/api/'
     this._baseUrl = !!urlPrefix ? baseUrl + urlPrefix : baseUrl
+    this._authToken = authToken
   }
 
   // * GETTERS
@@ -41,6 +48,13 @@ export class BaseApiService {
   }
 
   // * METHODS
+  private addAuthHeader() {
+    const authHeaderExists = this._headers.some((h) => h[0] === 'Authorization')
+    if (this._authToken && !authHeaderExists) {
+      this._headers.push(['Authorization', `Bearer ${this._authToken}`])
+    }
+  }
+
   public resetHeaders(): void {
     this._headers = []
   }
@@ -50,6 +64,7 @@ export class BaseApiService {
       headers: this._headers,
       method: this._method,
     }
+    this.addAuthHeader()
 
     if (body) {
       request.body = isJson ? JSON.stringify(body) : (body as any)
@@ -65,13 +80,23 @@ export class BaseApiService {
       if (apiResponse.ok) {
         // * This catches any void returns that can't be parsed to json
         try {
-          const response: T = await apiResponse.json()
-          return response
+          const response: ApiResponse<T> = await apiResponse.json()
+
+          if (!isApiResponseSuccessful(response.statusCode)) {
+            throw new ApiError(
+              response.statusCode,
+              !!response.message
+                ? response.message
+                : 'An unknown error has occurred',
+            )
+          }
+
+          return response.result
         } catch (e) {
-          return
+          throw new ApiError(500, 'An unknown error has occurred')
         }
       } else {
-        throw 'An unknown error has occurred'
+        throw new ApiError(apiResponse.status, apiResponse.statusText)
       }
     } catch (e) {
       throw e
