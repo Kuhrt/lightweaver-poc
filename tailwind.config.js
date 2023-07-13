@@ -32,7 +32,7 @@ module.exports = {
         gray: {
           200: '#E5E5E5',
           300: '#C5C5C5',
-          500: '#7D7D7D'
+          500: '#7D7D7D',
         },
         green: {
           500: '#00C35A',
